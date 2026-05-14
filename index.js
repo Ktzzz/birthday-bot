@@ -255,6 +255,7 @@ client.on('interactionCreate', async interaction => {
         embeds: [embed(`🎂 ${target.username}`, `Date : **${date}**\n${when}`, 0x8ecae6)],
       });
     }
+  }
   } catch (err) {
     console.error('❌ Erreur dans le handler :', err);
     if (!interaction.replied && !interaction.deferred) {
