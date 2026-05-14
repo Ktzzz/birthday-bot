@@ -103,7 +103,11 @@ client.once('ready', async () => {
 client.on('interactionCreate', async interaction => {
   if (!interaction.isChatInputCommand()) return;
 
+  console.log(`📨 Interaction reçue : /${interaction.commandName} par ${interaction.user.tag}`);
+
   const { commandName, options, guildId, user } = interaction;
+
+  try {
 
   // /birthday-channel
   if (commandName === 'birthday-channel') {
@@ -250,6 +254,11 @@ client.on('interactionCreate', async interaction => {
       return interaction.reply({
         embeds: [embed(`🎂 ${target.username}`, `Date : **${date}**\n${when}`, 0x8ecae6)],
       });
+    }
+  } catch (err) {
+    console.error('❌ Erreur dans le handler :', err);
+    if (!interaction.replied && !interaction.deferred) {
+      await interaction.reply({ content: '❌ Une erreur est survenue.', ephemeral: true }).catch(() => {});
     }
   }
 });
