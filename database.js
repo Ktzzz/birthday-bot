@@ -57,4 +57,17 @@ module.exports = {
     const s = read().settings.find(s => s.guildId === guildId);
     return s?.channelId ?? null;
   },
+
+  setRole(guildId, roleId) {
+    const data = read();
+    const existing = data.settings.find(s => s.guildId === guildId);
+    if (existing) { existing.roleId = roleId; }
+    else { data.settings.push({ guildId, roleId }); }
+    write(data);
+  },
+
+  getRole(guildId) {
+    const s = read().settings.find(s => s.guildId === guildId);
+    return s?.roleId ?? null;
+  },
 };

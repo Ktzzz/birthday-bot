@@ -79,6 +79,16 @@ const commands = [
       .setDescription('Le salon où envoyer les notifications')
       .setRequired(true)
     ),
+
+  new SlashCommandBuilder()
+    .setName('birthday-role')
+    .setDescription("Définit le rôle attribué le jour de l'anniversaire (Admin uniquement)")
+    .setDefaultMemberPermissions(PermissionFlagsBits.ManageGuild)
+    .addRoleOption(o => o
+      .setName('role')
+      .setDescription('Le rôle à attribuer')
+      .setRequired(true)
+    ),
 ].map(c => c.toJSON());
 
 // ─── Connexion & enregistrement des commandes ─────────────────────────────────
@@ -94,8 +104,9 @@ client.once('ready', async () => {
     console.error('❌ Erreur enregistrement des commandes :', err);
   }
 
+  cron.schedule('0 8 * * *', checkTomorrow, { timezone: 'Europe/Paris' });
   cron.schedule('0 9 * * *', checkBirthdays, { timezone: 'Europe/Paris' });
-  console.log('⏰ Vérification des anniversaires planifiée à 09h00 (Paris)');
+  console.log('⏰ Rappels à 08h00 et anniversaires à 09h00 (Paris)');
 });
 
 // ─── Gestion des interactions ─────────────────────────────────────────────────
@@ -115,6 +126,16 @@ client.on('interactionCreate', async interaction => {
     db.setChannel(guildId, channel.id);
     return interaction.reply({
       embeds: [embed('✅ Salon configuré', `Les notifications seront envoyées dans <#${channel.id}>.`, 0x57d6a0)],
+      ephemeral: true,
+    });
+  }
+
+  // /birthday-role
+  if (commandName === 'birthday-role') {
+    const role = options.getRole('role');
+    db.setRole(guildId, role.id);
+    return interaction.reply({
+      embeds: [embed('✅ Rôle configuré', `Le rôle <@&${role.id}> sera attribué le jour de l'anniversaire.`, 0x57d6a0)],
       ephemeral: true,
     });
   }
@@ -278,10 +299,27 @@ async function checkBirthdays() {
     const channel = guild.channels.cache.get(channelId);
     if (!channel?.isTextBased()) continue;
 
+    // Retirer le rôle d'anniversaire de tous ceux qui l'ont encore
+    const roleId = db.getRole(guildId);
+    if (roleId) {
+      const role = guild.roles.cache.get(roleId);
+      if (role) {
+        for (const [, member] of role.members) {
+          await member.roles.remove(role).catch(console.error);
+        }
+      }
+    }
+
     const birthdays = db.getBirthdaysByDate(guildId, day, month);
     for (const b of birthdays) {
       const member = await guild.members.fetch(b.userId).catch(() => null);
       if (!member) continue;
+
+      // Attribuer le rôle d'anniversaire
+      if (roleId) {
+        const role = guild.roles.cache.get(roleId);
+        if (role) await member.roles.add(role).catch(console.error);
+      }
 
       const ageText = b.year ? ` a **${today.getFullYear() - b.year} ans**` : '';
       await channel.send({
@@ -297,6 +335,39 @@ async function checkBirthdays() {
         ],
       }).catch(console.error);
     }
+  }
+}
+
+async function checkTomorrow() {
+  const tomorrow = new Date();
+  tomorrow.setDate(tomorrow.getDate() + 1);
+  const day = tomorrow.getDate();
+  const month = tomorrow.getMonth() + 1;
+
+  for (const [guildId, guild] of client.guilds.cache) {
+    const channelId = db.getChannel(guildId);
+    if (!channelId) continue;
+
+    const channel = guild.channels.cache.get(channelId);
+    if (!channel?.isTextBased()) continue;
+
+    const birthdays = db.getBirthdaysByDate(guildId, day, month);
+    if (!birthdays.length) continue;
+
+    const names = await Promise.all(birthdays.map(async b => {
+      const member = await guild.members.fetch(b.userId).catch(() => null);
+      return member ? `🎂 **${member.displayName}**` : `🎂 <@${b.userId}>`;
+    }));
+
+    await channel.send({
+      embeds: [
+        new EmbedBuilder()
+          .setTitle('🔔 Rappel — Anniversaire demain !')
+          .setDescription(`${names.join('\n')}\nN'oublie pas de les souhaiter demain ! 🥳`)
+          .setColor(0x8ecae6)
+          .setTimestamp(),
+      ],
+    }).catch(console.error);
   }
 }
 
