@@ -68,6 +68,10 @@ const commands = [
         .setDescription('Le membre concerné')
         .setRequired(true)
       )
+    )
+    .addSubcommand(s => s
+      .setName('test')
+      .setDescription('Déclenche manuellement les notifications du jour et de demain (Admin)')
     ),
 
   new SlashCommandBuilder()
@@ -257,6 +261,17 @@ client.on('interactionCreate', async interaction => {
         embeds: [embed('🗑️ Anniversaire supprimé', `L'anniversaire de **${target.username}** a été retiré.`, 0xe07070)],
         ephemeral: true,
       });
+    }
+
+    // TEST
+    if (sub === 'test') {
+      if (!interaction.memberPermissions.has(PermissionFlagsBits.ManageGuild)) {
+        return interaction.reply({ content: "❌ Tu n'as pas la permission de faire ça.", ephemeral: true });
+      }
+      await interaction.reply({ embeds: [embed('🧪 Test lancé', 'Envoi des notifications du jour et de demain...', 0x8ecae6)], ephemeral: true });
+      await checkBirthdays();
+      await checkTomorrow();
+      return;
     }
 
     // CHECK
